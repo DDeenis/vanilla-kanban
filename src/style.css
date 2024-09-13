@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  @apply bg-gray-600;
+}
+
+.board-scrollbar-vertical {
+  scrollbar-width: thin;
+  scrollbar-color: #64748b #1e293b;
+}
+
+.board-scrollbar-horizontal {
+  scrollbar-color: #64748b #1e293b;
+}
