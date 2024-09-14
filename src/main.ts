@@ -2,6 +2,7 @@ import "./style.css";
 import { DragDropManager, KeyboardSensor, PointerSensor } from "@dnd-kit/dom";
 import { RestrictToWindow } from "@dnd-kit/dom/modifiers";
 import { Sortable } from "@dnd-kit/dom/sortable";
+import { closestCorners } from "@dnd-kit/collision";
 
 type Card = {
   id: string;
@@ -79,14 +80,15 @@ function createCard({
   return cardElem;
 }
 
-let globalCardIndex = 0;
 function createColumn({
   column,
   index,
+  getCardIndex,
   manager,
 }: {
   column: ColumnWithCards;
   index: number;
+  getCardIndex: (id: string) => number;
   manager: DragDropManager;
 }) {
   const columnElem = document.createElement("div");
@@ -104,7 +106,7 @@ function createColumn({
 
   for (const card of column.cards) {
     cardsContainer.appendChild(
-      createCard({ card, index: globalCardIndex++, manager })
+      createCard({ card, index: getCardIndex(card.id), manager })
     );
   }
 
@@ -112,7 +114,7 @@ function createColumn({
   emplyListPlaceholder.className =
     "rounded-md border border-dashed border-gray-500 p-2 text-center text-gray-400 hidden only-of-type:block";
   emplyListPlaceholder.textContent = "Drag card here";
-  cardsContainer.appendChild(emplyListPlaceholder);
+  // cardsContainer.appendChild(emplyListPlaceholder);
 
   const addCardBtn = document.createElement("button");
   addCardBtn.className = "p-2 text-white";
@@ -131,6 +133,7 @@ function createColumn({
       data: {
         column,
       } as DndEventData,
+      collisionDetector: closestCorners,
     },
     manager
   );
@@ -144,21 +147,66 @@ function setupBoard(columns: ColumnWithCards[]) {
 
   const boardContainer = document.createElement("div");
   boardContainer.className =
-    "inline-flex gap-4 w-screen h-screen p-4 overflow-x-auto overflow-y-hidden board-scrollbar-horizontal";
+    "inline-flex w-screen h-screen p-4 overflow-x-auto overflow-y-hidden board-scrollbar-horizontal";
 
   const dndManager = new DragDropManager({
     modifiers: [RestrictToWindow],
     sensors: [PointerSensor, KeyboardSensor],
   });
 
+  const cardIndexMap = new Map<string, number>();
+  let globalCardIndex = 0;
+  for (let i = 0; i < columns.length; i++) {
+    const column = columns[i];
+    for (let j = 0; j < column.cards.length; j++) {
+      const card = column.cards[j];
+      cardIndexMap.set(card.id, globalCardIndex++);
+    }
+  }
+
+  const getCardIndex = (id: string) => {
+    const index = cardIndexMap.get(id);
+
+    if (index === undefined) {
+      throw new Error(`Unknown card id: ${id}`);
+    }
+
+    return index;
+  };
+
   let columnIndex = 0;
   for (const column of columns) {
     boardContainer.appendChild(
-      createColumn({ column, index: columnIndex++, manager: dndManager })
+      createColumn({
+        column,
+        index: columnIndex++,
+        getCardIndex,
+        manager: dndManager,
+      })
     );
   }
 
   appContainer.appendChild(boardContainer);
 }
 
+class BoardDataChangedEvent extends Event {
+  data: ColumnWithCards[];
+
+  constructor(data: ColumnWithCards[]) {
+    super("boarddatachanged", {
+      bubbles: true,
+      cancelable: true,
+    });
+    this.data = data;
+  }
+}
+
+function setBoardData() {
+  const boardDataChangedEvent = new BoardDataChangedEvent(initialColumns);
+  document.dispatchEvent(boardDataChangedEvent);
+}
+
 setupBoard(initialColumns);
+
+// document.addEventListener("boarddatachanged", console.log);
+// setBoardData();
